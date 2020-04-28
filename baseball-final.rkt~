@@ -1,10 +1,9 @@
 #lang forge
---a sig defining players
+
 sig Player {
   next : one Player
 }
 
---there should be 9 players
 one sig Player0 extends Player{}
 one sig Player1 extends Player{}
 one sig Player2 extends Player{}
@@ -15,7 +14,6 @@ one sig Player6 extends Player{}
 one sig Player7 extends Player{}
 one sig Player8 extends Player{}
 
---rule defining the batting order for players
 pred batting_order {
   Player0.next = Player1
   Player1.next = Player2
@@ -27,26 +25,24 @@ pred batting_order {
   Player7.next = Player8
   Player8.next = Player0
 }
-
---a sig for bases
+ 
 sig Base {
     nextBase: lone Base
 }
 
---there should be exactly 4 bases
 one sig FirstBase extends Base{}
 one sig SecondBase extends Base{}
 one sig ThirdBase extends Base{}
 one sig HomePlate extends Base{}
 
---a sig defining states
+
 sig State {
   outs : one Int,
   runs : one Int,
   atBat : one Player,
   on_base : set Base -> Player,
   people_out: set Player
-  --outsAndRunsOrder: Player -> Player
+  outsAndRunsOrder: Player -> Player
 }
 
 
@@ -58,13 +54,11 @@ pred base_order {
    HomePlate.nextBase = HomePlate
 }
 
---a sig defining Events
 sig Event {
     pre: one State,
     post: one State
 }
 
---here are all of the event types that could occur
 sig StrikeOut extends Event {  }
 sig Hit extends Event {  }
 sig Fieldout extends Event {  }
@@ -73,8 +67,10 @@ sig Walk extends Event {  }
 sig HBP extends Event {  }
 sig Steal extends Event {  }
 
--- constraints for the first state
+---------- Transitions ----------
 state[State] initState {
+    -- constraints for the first state
+    -- Fill me in!
     atBat = Player0
     outs = sing[0]
     runs = sing[0]
@@ -82,12 +78,12 @@ state[State] initState {
     no people_out
 }
 
---constraints for the final state
 state[State] finalState {
+    -- constraints for the first state
+    -- Fill me in!
     sum[outs] >= 3
 }
 
---the transition between batting events
 transition[State] batterTransition[e: Event] {
    e.pre = this
    e.post = this'
@@ -107,14 +103,12 @@ transition[State] batterTransition[e: Event] {
       on_base' = on_base
       atBat' = atBat.next
    }
-   
    e in Hit implies {
        atBat in on_base'[Base]
        on_base'[Base] in on_base[FirstBase + SecondBase + ThirdBase] + atBat
        on_base[FirstBase + SecondBase + ThirdBase] in on_base'[Base] + people_out'
        atBat' = atBat.next
    }
-   
    e in Fieldout implies {
        atBat in people_out'
        on_base'[Base] in on_base[Base]
@@ -125,44 +119,34 @@ transition[State] batterTransition[e: Event] {
        some on_base
        no people_out'
        atBat' = atBat
-       all b : Base - HomePlate | all p: Player | ((b.nextBase -> p) in on_base') iff
-       ((b -> p) in on_base)
+       all b : Base - HomePlate | all p: Player | ((b.nextBase -> p) in on_base') iff ((b -> p) in on_base)
        no FirstBase.on_base'
    }
-   
    e in Walk implies {
        no people_out'
        atBat' = atBat.next
-       (no on_base[FirstBase]) implies on_base' = (SecondBase -> on_base[SecondBase]) +
-       (ThirdBase -> on_base[ThirdBase]) + (FirstBase -> atBat)
+       (no on_base[FirstBase]) implies on_base' = (SecondBase -> on_base[SecondBase]) + (ThirdBase -> on_base[ThirdBase]) + (FirstBase -> atBat)
        else {
-            no on_base[SecondBase] implies on_base' = on_base + (FirstBase -> atBat) +
-            (SecondBase -> on_base[FirstBase]) - (FirstBase -> on_base[FirstBase])
+            no on_base[SecondBase] implies on_base' = on_base + (FirstBase -> atBat) + (SecondBase -> on_base[FirstBase]) - (FirstBase -> on_base[FirstBase])
             else {
-                all b : Base - HomePlate | all p: Player | ((b.nextBase -> p) in on_base') iff
-                ((b -> p) in on_base)
+                all b : Base - HomePlate | all p: Player | ((b.nextBase -> p) in on_base') iff ((b -> p) in on_base)
                 on_base'[FirstBase] = atBat
             }
        }
    }
-   
    e in Steal implies {
        some on_base
        (on_base'[Base] + people_out') in on_base[FirstBase + SecondBase + ThirdBase]
        on_base[FirstBase + SecondBase + ThirdBase] in on_base'[Base] + people_out'
        atBat' = atBat
    }
-   
    e in HBP implies {
        atBat' = atBat.next
-       (no on_base[FirstBase]) implies on_base' = (SecondBase -> on_base[SecondBase]) +
-       (ThirdBase -> on_base[ThirdBase]) + (FirstBase -> atBat)
+       (no on_base[FirstBase]) implies on_base' = (SecondBase -> on_base[SecondBase]) + (ThirdBase -> on_base[ThirdBase]) + (FirstBase -> atBat)
        else {
-            no on_base[SecondBase] implies on_base' = on_base + (FirstBase -> atBat) +
-            (SecondBase -> on_base[FirstBase]) - (FirstBase -> on_base[FirstBase])
+            no on_base[SecondBase] implies on_base' = on_base + (FirstBase -> atBat) + (SecondBase -> on_base[FirstBase]) - (FirstBase -> on_base[FirstBase])
             else {
-                all b : Base - HomePlate | all p: Player | ((b.nextBase -> p) in on_base') iff
-                ((b -> p) in on_base)
+                all b : Base - HomePlate | all p: Player | ((b.nextBase -> p) in on_base') iff ((b -> p) in on_base)
                 on_base'[FirstBase] = atBat
             }
        }
@@ -191,28 +175,26 @@ pred runInOrder {
         
         all p1 : ((FirstBase + SecondBase + ThirdBase).((e.pre).on_base)) - e.post.people_out |
             all p2: ((FirstBase + SecondBase + ThirdBase).((e.pre).on_base)) - e.post.people_out |
-                (((e.pre).on_base).p2 in (((e.pre).on_base).p1).*nextBase) implies
-                (((e.post).on_base).p2 in (((e.post).on_base).p1).*nextBase)
+                (((e.pre).on_base).p2 in (((e.pre).on_base).p1).*nextBase) implies (((e.post).on_base).p2 in (((e.post).on_base).p1).*nextBase)
     }
 }
 
---a transition between states
+
+
 transition[State] stateTransition {
     one e: Event | batterTransition[this, this', e]
 }
 
---predicate for testing and debugging
 pred wellFormedEvent {
-    -- events include all possible event types
+    -- all events are either pushes or pops
     Event = Hit + StrikeOut + Balk + HBP + Fieldout + Walk + Steal
     --#(Walk & Event) > 1
     --#(HBP & Event) > 1
     --#(Steal & Event) > 1
 }             
 
---keep all of the rules in one place
 pred allTheRules {
-    --How the field is laid out
+    --How the field is layed out
     batting_order
     base_order
     wellFormedEvent
@@ -225,8 +207,7 @@ pred allTheRules {
 
 
 trace<|State, initState, stateTransition, finalState|> fullInning {}
-run<|fullInning|> {allTheRules} for exactly 9 Player, exactly 4 Base, 10 State, 9 Event, 4 Hit,
-3 HBP, 3 Walk, 3 Balk, 3 Fieldout, 3 Steal, 3 StrikeOut
+run<|fullInning|> {allTheRules} for exactly 9 Player, exactly 4 Base, 10 State, 9 Event, 4 Hit,  3 HBP, 3 Walk, 3 Balk, 3 Fieldout, 3 Steal, 3 StrikeOut
 
 trace<|State, _, stateTransition, _|> traces {}
 
@@ -234,8 +215,6 @@ trace<|State, _, stateTransition, _|> traces {}
 --If you change the 6 states to 5 states it becomes SAT
 --run<|traces|> {allTheRules} for exactly 9 Player, exactly 6 State, exactly 5 Event, exactly 4 Base
 
----------------------------------------------Tests--------------------------------------------------
---setup for tests
 inst boiler{
     Player0 = Player00
     Player1 = Player10
@@ -253,7 +232,6 @@ inst boiler{
     Base = FirstBase0 + SecondBase0 + ThirdBase0 + HomePlate0
 }
 
---test a triple
 inst testOneTriple {
     boiler
     Event = Hit0
@@ -267,7 +245,6 @@ inst testOneTriple {
     runs = State0 -> sing[0] + State1 -> sing[0]   
 }
 
---test a triple with a random run
 inst testTripleWithRandomRun {
     boiler
     Event = Hit0
@@ -281,7 +258,6 @@ inst testTripleWithRandomRun {
     runs = State0 -> sing[0] + State1 -> sing[5]
 }
 
---test that a runner who starts after can't pass a runner who was before
 inst batterCantPass {
     boiler
     Event = Hit0 + Hit1
@@ -295,7 +271,6 @@ inst batterCantPass {
     runs = State0 -> sing[0] + State1 -> sing[0] + State2 -> sing[1]
 }
 
---test that home runs are counted correctly
 inst homerun {
     boiler
     Event = Hit0 + Hit1
@@ -309,7 +284,6 @@ inst homerun {
     runs = State0 -> sing[0] + State1 -> sing[0] + State2 -> sing[2]
 }
 
---test that one base can't have more than one player at a time
 inst testSingleBaseOwner {
     boiler
     Event = Hit0 + Hit1
@@ -323,7 +297,7 @@ inst testSingleBaseOwner {
     runs = State0 -> sing[0] + State1 -> sing[0] + State2 -> sing[0]
 }
 
---test that a player can't be on more than one base at a time
+
 inst testRightToBase {
     boiler
     Event = Hit0
@@ -337,7 +311,6 @@ inst testRightToBase {
     runs = State0 -> sing[0] + State1 -> sing[0] 
 }
 
---test a series of strikeouts and steal
 inst testStrikeoutSteal {
     boiler
     Event = StrikeOut0 + Steal0
@@ -357,7 +330,6 @@ inst testStrikeoutSteal {
 
 --run<|traces|> {allTheRules} for batterCantPass 
 
---run tests
 test expect {
     justATriple: <|traces|> {allTheRules} for testOneTriple is sat
     cheekyTriple: <|traces|> {allTheRules} for testTripleWithRandomRun is unsat
