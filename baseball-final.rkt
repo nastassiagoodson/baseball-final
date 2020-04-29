@@ -41,11 +41,11 @@ one sig HomePlate extends Base{}
 
 --a sig defining states
 sig State {
-  outs : one Int,
-  runs : one Int,
-  atBat : one Player,
-  on_base : set Base -> Player,
-  people_out: set Player
+  outs : one Int,--the number of outs in the inning so far
+  runs : one Int,--the number of runs in the inning so far
+  atBat : one Player, --the person at bat in the current state
+  on_base : set Base -> Player, --a relation from each base to the player on the base
+  people_out: set Player --the set of of people who got out in the state
   --outsAndRunsOrder: Player -> Player
 }
 
@@ -75,7 +75,7 @@ sig Steal extends Event {  }
 
 -- constraints for the first state
 state[State] initState {
-    atBat = Player0
+    atBat = Player0 -- the first player at bat should be Player0
     outs = sing[0]
     runs = sing[0]
     no on_base
@@ -84,43 +84,68 @@ state[State] initState {
 
 --constraints for the final state
 state[State] finalState {
-    sum[outs] >= 3
+    sum[outs] >= 3 --an inning should end after there are 3 outs
 }
 
 --the transition between batting events
 transition[State] batterTransition[e: Event] {
    e.pre = this
    e.post = this'
-   no people_out & people_out'
+   no people_out & people_out' --the set people_out refreshes in every state
+   --people on home plate are removed before the next state
    no (HomePlate.on_base & HomePlate.on_base')
+   --for any given base there should be no people out that are also on base
    no (on_base'[Base] & people_out')
+   --the new number of people out should only include people who were
+   --on base but not on home base in the previous state or were at bat in the
+   --previous state
    people_out' in atBat + on_base[FirstBase + SecondBase + ThirdBase]
+   --the new number of people out should include the previous number of outs
+   --added to the new number of people out
    outs' = sing[add[sum[outs], #(people_out')]]
-
+   --keeping this???
    e.post in State.pre => runs' = sing[add[sum[runs], #(on_base'[HomePlate])]] else {
       runs' <= sing[add[sum[runs], #(on_base'[HomePlate])]]
       runs' >= runs
    }
-
+   --if the event is a strike out, the current batter should get out,
+   --the people on base should stay the same, and the new batter should
+   --be the current batter's next player
    e in StrikeOut implies {
       atBat in people_out'
       on_base' = on_base
       atBat' = atBat.next
    }
    
+   --if the event is a hit, the current batter should be in the next on_base relation,
+   --everyone in the next on_base relation should only include those
+   --who were on first, second, and third bases in the previous state and the batter,
+   --anyone who was on the first three bases in the previous state
+   --should be either in the new on_base relation or in the new people_out (no teleporting players)
+   --the new batter should be the current batter's next
    e in Hit implies {
        atBat in on_base'[Base]
        on_base'[Base] in on_base[FirstBase + SecondBase + ThirdBase] + atBat
        on_base[FirstBase + SecondBase + ThirdBase] in on_base'[Base] + people_out'
        atBat' = atBat.next
    }
-   
+
+   --if the event is a field out, the current batter should be in the next people_out set,
+   --anyone in the new on_base relation should have been in the previous on_base relation,
+   --anyone on first, second or third base in the old on_base relation should be in
+   --the new on_base relation or in the new set of people_out,
+   --the batter in the next state should be the current batter's next
    e in Fieldout implies {
        atBat in people_out'
        on_base'[Base] in on_base[Base]
        on_base[FirstBase + SecondBase + ThirdBase] in on_base'[Base] + people_out'
        atBat' = atBat.next
    }
+
+   --if the event is a balk, the next batter stays the same as the current batter,
+   --there should be some people in on_base, there should be no one on the new first base,
+   --and for all bases other than the home plate, the player on the next bases should be
+   --in the new on_base relation iff the player is on the current base in the previous state
    e in Balk implies {
        some on_base
        no people_out'
@@ -129,7 +154,16 @@ transition[State] batterTransition[e: Event] {
        ((b -> p) in on_base)
        no FirstBase.on_base'
    }
-   
+
+   --if the event is a walk, no one should get out, the batter should rotate
+   --if there is no one on first base, then the new on_base relation should include the
+   --people on second and third in the previous state as well as the batter on first base
+   --if there is no one on second base, the new on_base relation should include the
+   --previous on_base relation as well as the batter on first base, the person on third base
+   --in the previous state except for the person previously on first base
+   --otherwise, any player on the next base of any given base is in the new on_base relation
+   --iff that same player is on the current base in the previous on_base relation and
+   --the person on first base in the next state should be the current batter
    e in Walk implies {
        no people_out'
        atBat' = atBat.next
