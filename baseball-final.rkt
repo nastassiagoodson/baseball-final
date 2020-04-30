@@ -179,14 +179,32 @@ transition[State] batterTransition[e: Event] {
             }
        }
    }
-   
+
+   --if the event is a steal, there should be more than 0 people on base,
+   --the people in the new on_base and new people_out should have been in the previous
+   --relation on_base of the first three bases
+   --people on the first three bases in the previous state should be in the new on_base relation
+   --or in the new set of people_out
+   --the batter should stay the same
    e in Steal implies {
        some on_base
        (on_base'[Base] + people_out') in on_base[FirstBase + SecondBase + ThirdBase]
        on_base[FirstBase + SecondBase + ThirdBase] in on_base'[Base] + people_out'
        atBat' = atBat
    }
-   
+
+   --if the event is a hit-by-pitch, the new batter should be the previous batter's next,
+   --if there is no one on first base in the previous state, the next state should
+   --include whoever was on second base in the previous state (still on second base),
+   --whoever was on third base in the previous state (still on third base), and
+   --whoever was at bat in the previous state should be on first base
+   --otherwise, if there was no one on second base in the previous state, the new on_base
+   --relation should include everything from the previous on_base relation, except
+   --with the person previously on first base replaced with the batter in the new state,
+   --and the person on second base should be the person who was previously on first base
+   --otherwise, any player on any given base's next base should be in the new on_base relation
+   --iff that same player is on the current base in the previous state, and the batter
+   --should be on first base in the new state
    e in HBP implies {
        atBat' = atBat.next
        (no on_base[FirstBase]) implies on_base' = (SecondBase -> on_base[SecondBase]) +
@@ -393,13 +411,21 @@ inst testStrikeoutSteal {
 
 --run tests
 test expect {
+    --test a single triple
     justATriple: <|traces|> {allTheRules} for testOneTriple is sat
+    --test a triple with a random run
     cheekyTriple: <|traces|> {allTheRules} for testTripleWithRandomRun is unsat
+    --test that players can't pass one another
     noPassing: <|traces|> {allTheRules} for batterCantPass is unsat
+    --test that home runs are counted correctly
     hitEmHome: <|traces|> {allTheRules} for homerun is sat
+    --check that player's cant share bases
     noSharing: <|traces|> {allTheRules} for testSingleBaseOwner is unsat
+    --check that a player can't be on more than one base at a same time
     noQuantumPlayers: <|traces|> {allTheRules} for testRightToBase is unsat
+    --check a situation with a strikeout and steal
     strikeoutsAndSteal: <|traces|> {allTheRules} for testStrikeoutSteal is unsat
+    --check a complicated sequence of events
     lotsOfDifferentEvents: <|traces|> {allTheRules} for exactly 9 State, exactly 8 Event, exactly 3 Hit, exactly 1 HBP,
                                                                           exactly 1 Walk, exactly 1 Balk, exactly 1 Fieldout,
                                                                            exactly 1 Steal, exactly 1 StrikeOut, exactly 9 Player, exactly 4 Base is sat
